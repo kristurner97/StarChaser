@@ -474,11 +474,6 @@ Public Class Dome
     ''' </summary>
     Private ReadOnly Property IsConnected As Boolean
         Get
-            ' TODO check that the driver hardware connection exists and is connected to the hardware
-
-
-
-
             Return connectedState
         End Get
     End Property
