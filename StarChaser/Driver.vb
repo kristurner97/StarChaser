@@ -212,7 +212,7 @@ Public Class Dome
 
             End If
         End Set
-    End Property 'COMPLETED 07/05/2016 KT
+    End Property 'COMPLETED 07/05/2016 KST
 
     Public ReadOnly Property Description As String Implements IDomeV2.Description
         Get
@@ -273,42 +273,91 @@ Public Class Dome
 
     Private domeShutterState As Boolean = False ' Variable to hold the open/closed status of the shutter, true = Open
 
+    ''' <summary>
+    ''' This method instructs the Arduino to abort any slewing commands. It does not receive a response from Arduino.
+    ''' Modified 07/05/2016 KST
+    ''' </summary>
+
     Public Sub AbortSlew() Implements IDomeV2.AbortSlew
-        ' This is a mandatory parameter but we have no action to take in this simple driver
+
+        DomeSerial.Write("AbortSlew#")
+
         TL.LogMessage("AbortSlew", "Completed")
     End Sub
+
+    ''' <summary>
+    ''' ALTITUDE
+    ''' At this time StarChaser does not have the capabilities of reporting shutter altitude. Returns zero.
+    ''' Modified 07/05/2016 KST
+    ''' </summary>
 
     Public ReadOnly Property Altitude() As Double Implements IDomeV2.Altitude
         Get
             TL.LogMessage("Altitude Get", "Not implemented")
-            Throw New ASCOM.PropertyNotImplementedException("Altitude", False)
+            Return 0
         End Get
     End Property
+
+    Public ReadOnly Property CanSetAltitude() As Boolean Implements IDomeV2.CanSetAltitude
+        Get
+            TL.LogMessage("CanSetAltitude Get", False.ToString())
+            Return False
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' At Home
+    ''' StarChaser will poll the reed switch (which marks home position). If it is at home it will return "Home#" otherwise "NotHome#".
+    ''' Modified 07/05/2016 KST
+    ''' </summary
 
     Public ReadOnly Property AtHome() As Boolean Implements IDomeV2.AtHome
         Get
-            TL.LogMessage("AtHome", "Not implemented")
-            Throw New ASCOM.PropertyNotImplementedException("AtHome", False)
-        End Get
-    End Property
 
-    Public ReadOnly Property AtPark() As Boolean Implements IDomeV2.AtPark
-        Get
-            TL.LogMessage("AtPark", "Not implemented")
-            Throw New ASCOM.PropertyNotImplementedException("AtPark", False)
-        End Get
-    End Property
+            DomeSerial.Write("AtHome#")
 
-    Public ReadOnly Property Azimuth() As Double Implements IDomeV2.Azimuth
-        Get
-            TL.LogMessage("Azimuth", "Not implemented")
-            Throw New ASCOM.PropertyNotImplementedException("Azimuth", False)
+            Try
+
+                Dim StartTime As TimeSpan = Today.TimeOfDay
+
+                Do
+                    Dim ArduinoMessage As String = DomeSerial.ReadTo("#")
+                    If ArduinoMessage Is Nothing Then
+                        If StartTime.TotalMilliseconds - Today.TimeOfDay.TotalMilliseconds > 1000 Then
+                            Throw New TimeoutException
+                            Exit Do
+                        End If
+                    ElseIf ArduinoMessage = "Home" Then
+                        Return True
+                        Exit Do
+                    ElseIf ArduinoMessage = "NotHome" Then
+                        Return False
+                        Exit Do
+                    End If
+                Loop
+            Catch ex As TimeoutException
+                TL.LogMessage("Communication", "Time Out Error. Check device is connected.")
+            End Try
+
         End Get
     End Property
 
     Public ReadOnly Property CanFindHome() As Boolean Implements IDomeV2.CanFindHome
         Get
-            TL.LogMessage("CanFindHome Get", False.ToString())
+            TL.LogMessage("CanFindHome Get", True.ToString())
+            Return True
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' At Park
+    ''' At this time StarChaser does not have the capabilities of Parking dome rotation. Returns AtPark False.
+    ''' Modified 07/05/2016 KST
+    ''' </summary>
+
+    Public ReadOnly Property AtPark() As Boolean Implements IDomeV2.AtPark
+        Get
+            TL.LogMessage("AtPark", "Not implemented")
             Return False
         End Get
     End Property
@@ -320,10 +369,47 @@ Public Class Dome
         End Get
     End Property
 
-    Public ReadOnly Property CanSetAltitude() As Boolean Implements IDomeV2.CanSetAltitude
+    Public ReadOnly Property CanSetPark() As Boolean Implements IDomeV2.CanSetPark
         Get
-            TL.LogMessage("CanSetAltitude Get", False.ToString())
+            TL.LogMessage("CanSetPark Get", False.ToString())
             Return False
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Azimuth
+    ''' Ask the Arduino for it's current location.
+    ''' Modified 07/05/2016 KST
+    ''' </summary>
+
+    Public ReadOnly Property Azimuth() As Double Implements IDomeV2.Azimuth
+        Get
+
+            DomeSerial.Write("AzGet#")
+
+            Try
+
+                Dim StartTime As TimeSpan = Today.TimeOfDay
+
+                Do
+                    Dim ArduinoMessage As String = DomeSerial.ReadTo("#")
+                    If ArduinoMessage Is Nothing Then
+                        If StartTime.TotalMilliseconds - Today.TimeOfDay.TotalMilliseconds > 2000 Then
+                            Throw New TimeoutException
+                            Exit Do
+                        End If
+                    ElseIf ArduinoMessage.Contains("Az[") Then
+                        Dim Az As String = ArduinoMessage.Remove(0, 3)
+                        Az = Az.Remove(Az.IndexOf("]"))
+                        Return Double.Parse(Az)
+                        Exit Do
+                    End If
+                Loop
+            Catch ex As TimeoutException
+                TL.LogMessage("Communication", "Time Out Error. Check device is connected.")
+            End Try
+
+
         End Get
     End Property
 
@@ -334,17 +420,17 @@ Public Class Dome
         End Get
     End Property
 
-    Public ReadOnly Property CanSetPark() As Boolean Implements IDomeV2.CanSetPark
-        Get
-            TL.LogMessage("CanSetPark Get", False.ToString())
-            Return False
-        End Get
-    End Property
 
+
+
+    ''' <summary>
+    ''' At this time StarChaser does not have the capabilities of automatic shutter control.
+    ''' Modified 07/05/2016 KST
+    ''' </summary>
     Public ReadOnly Property CanSetShutter() As Boolean Implements IDomeV2.CanSetShutter
         Get
-            TL.LogMessage("CanSetShutter Get", True.ToString())
-            Return True
+            TL.LogMessage("CanSetShutter Get", False.ToString())
+            Return False
         End Get
     End Property
 
@@ -472,6 +558,7 @@ Public Class Dome
     ''' <summary>
     ''' Returns true if there is a valid connection to the driver hardware
     ''' </summary>
+    ''' IsConnected Property completed 07/05/2016 KST
     Private ReadOnly Property IsConnected As Boolean
         Get
             Return connectedState
