@@ -305,6 +305,12 @@ Public Class Dome
         End Get
     End Property
 
+    Public Sub SlewToAltitude(Altitude As Double) Implements IDomeV2.SlewToAltitude
+        TL.LogMessage("SlewToAltitude", "Not implemented")
+        Throw New ASCOM.MethodNotImplementedException("SlewToAltitude")
+    End Sub
+
+
     ''' <summary>
     ''' At Home
     ''' StarChaser will poll the reed switch (which marks home position). If it is at home it will return "Home#" otherwise "NotHome#".
@@ -342,6 +348,12 @@ Public Class Dome
         End Get
     End Property
 
+    Public Sub FindHome() Implements IDomeV2.FindHome
+
+        DomeSerial.Write("GoHome#")
+
+    End Sub
+
     Public ReadOnly Property CanFindHome() As Boolean Implements IDomeV2.CanFindHome
         Get
             TL.LogMessage("CanFindHome Get", True.ToString())
@@ -376,9 +388,19 @@ Public Class Dome
         End Get
     End Property
 
+    Public Sub Park() Implements IDomeV2.Park
+        TL.LogMessage("Park", "Not implemented")
+        Throw New ASCOM.MethodNotImplementedException("Park")
+    End Sub
+
+    Public Sub SetPark() Implements IDomeV2.SetPark
+        TL.LogMessage("SetPark", "Not implemented")
+        Throw New ASCOM.MethodNotImplementedException("SetPark")
+    End Sub
+
     ''' <summary>
     ''' Azimuth
-    ''' Ask the Arduino for it's current location.
+    ''' Ask the Arduino for it's current location and allow software to know that we can control azimuth.
     ''' Modified 07/05/2016 KST
     ''' </summary>
 
@@ -415,13 +437,67 @@ Public Class Dome
 
     Public ReadOnly Property CanSetAzimuth() As Boolean Implements IDomeV2.CanSetAzimuth
         Get
-            TL.LogMessage("CanSetAzimuth Get", False.ToString())
-            Return False
+            TL.LogMessage("CanSetAzimuth Get", True.ToString())
+            Return True
         End Get
     End Property
 
+    Public ReadOnly Property CanSlave() As Boolean Implements IDomeV2.CanSlave
+        Get
+            TL.LogMessage("CanSlave Get", True.ToString())
+            Return True
+        End Get
+    End Property
+
+    Public ReadOnly Property CanSyncAzimuth() As Boolean Implements IDomeV2.CanSyncAzimuth
+        Get
+            TL.LogMessage("CanSyncAzimuth Get", True.ToString())
+            Return True
+        End Get
+    End Property
+
+    Public Sub SlewToAzimuth(Azimuth As Double) Implements IDomeV2.SlewToAzimuth
+
+        DomeSerial.Write("AzSet[" & Azimuth & "]#")
+
+    End Sub
+
+    Public ReadOnly Property Slewing() As Boolean Implements IDomeV2.Slewing
+        Get
+
+            DomeSerial.Write("IsSlewing#")
+
+            Try
+
+                Dim StartTime As TimeSpan = Today.TimeOfDay
+
+                Do
+                    Dim ArduinoMessage As String = DomeSerial.ReadTo("#")
+                    If ArduinoMessage Is Nothing Then
+                        If StartTime.TotalMilliseconds - Today.TimeOfDay.TotalMilliseconds > 2000 Then
+                            Throw New TimeoutException
+                            Exit Do
+                        End If
+                    ElseIf ArduinoMessage = "Slewing" Then
+                        Return True
+                        Exit Do
+                    ElseIf ArduinoMessage = "Static" Then
+                        Return False
+                        Exit Do
+                    End If
+                Loop
+            Catch ex As TimeoutException
+                TL.LogMessage("Communication", "Time Out Error. Check device is connected.")
+            End Try
 
 
+
+        End Get
+    End Property
+
+    Public Sub SyncToAzimuth(Azimuth As Double) Implements IDomeV2.SyncToAzimuth
+        SlewToAzimuth(Azimuth)
+    End Sub
 
     ''' <summary>
     ''' At this time StarChaser does not have the capabilities of automatic shutter control.
@@ -434,43 +510,14 @@ Public Class Dome
         End Get
     End Property
 
-    Public ReadOnly Property CanSlave() As Boolean Implements IDomeV2.CanSlave
-        Get
-            TL.LogMessage("CanSlave Get", False.ToString())
-            Return False
-        End Get
-    End Property
-
-    Public ReadOnly Property CanSyncAzimuth() As Boolean Implements IDomeV2.CanSyncAzimuth
-        Get
-            TL.LogMessage("CanSyncAzimuth Get", False.ToString())
-            Return False
-        End Get
-    End Property
-
     Public Sub CloseShutter() Implements IDomeV2.CloseShutter
         TL.LogMessage("CloseShutter", "Shutter has been closed")
         domeShutterState = False
     End Sub
 
-    Public Sub FindHome() Implements IDomeV2.FindHome
-        TL.LogMessage("FindHome", "Not implemented")
-        Throw New ASCOM.MethodNotImplementedException("FindHome")
-    End Sub
-
     Public Sub OpenShutter() Implements IDomeV2.OpenShutter
         TL.LogMessage("OpenShutter", "Shutter has been opened")
         domeShutterState = True
-    End Sub
-
-    Public Sub Park() Implements IDomeV2.Park
-        TL.LogMessage("Park", "Not implemented")
-        Throw New ASCOM.MethodNotImplementedException("Park")
-    End Sub
-
-    Public Sub SetPark() Implements IDomeV2.SetPark
-        TL.LogMessage("SetPark", "Not implemented")
-        Throw New ASCOM.MethodNotImplementedException("SetPark")
     End Sub
 
     Public ReadOnly Property ShutterStatus() As ShutterState Implements IDomeV2.ShutterStatus
@@ -496,28 +543,6 @@ Public Class Dome
             Throw New ASCOM.PropertyNotImplementedException("Slaved", True)
         End Set
     End Property
-
-    Public Sub SlewToAltitude(Altitude As Double) Implements IDomeV2.SlewToAltitude
-        TL.LogMessage("SlewToAltitude", "Not implemented")
-        Throw New ASCOM.MethodNotImplementedException("SlewToAltitude")
-    End Sub
-
-    Public Sub SlewToAzimuth(Azimuth As Double) Implements IDomeV2.SlewToAzimuth
-        TL.LogMessage("SlewToAzimuth", "Not implemented")
-        Throw New ASCOM.MethodNotImplementedException("SlewToAzimuth")
-    End Sub
-
-    Public ReadOnly Property Slewing() As Boolean Implements IDomeV2.Slewing
-        Get
-            TL.LogMessage("Slewing Get", False.ToString())
-            Return False
-        End Get
-    End Property
-
-    Public Sub SyncToAzimuth(Azimuth As Double) Implements IDomeV2.SyncToAzimuth
-        TL.LogMessage("SyncToAzimuth", "Not implemented")
-        Throw New ASCOM.MethodNotImplementedException("SyncToAzimuth")
-    End Sub
 
 #End Region
 
